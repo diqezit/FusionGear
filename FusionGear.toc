@@ -1,0 +1,16 @@
+## Interface: 30300
+## Title: FusionGear
+## Notes: Equipment stats, item sources, enchants and compact item tooltips
+## Author: diqezit
+## Version: 0.0.1
+## SavedVariables: FusionGearDB
+## OptionalDeps: GearScoreLite
+
+Items.lua
+InspectEquip.lua
+Enchant.lua
+Tooltips.lua
+Stats.lua
+Equipment.lua
+GearScore.lua
+Core.lua
