@@ -8,6 +8,12 @@ Basically purpose to a create Cata/MoP-style stat overview for quick inspection-
 So, if there are any potential UI issues or addon incompatibilities due quikly developnent and not mutch time to test this
 please drop me a link to the mod and describe the cause in the issues report
 
+## Screenshots
+
+![FusionGear screenshot 1](docs/scr1.png)
+
+![FusionGear screenshot 2](docs/scr2.png)
+
 ## Features
 
 - per item level numbers on equipped items
