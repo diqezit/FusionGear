@@ -38,9 +38,21 @@ local EMPTY_SOCKET_TEXTURES = {
     PRISMATIC = "Interface\\ItemSocketingFrame\\UI-EmptySocket-Prismatic",
 }
 
--- Socket counts are read from GetItemStats result
--- Keep fixed order for stable marker placement
-local SOCKET_ORDER = { "META", "RED", "YELLOW", "BLUE", "PRISMATIC" }
+-- Empty socket line text in item tooltip maps back to socket type
+-- Prismatic text is stored in different global on some clients
+local SOCKET_TYPE_BY_TEXT = {}
+for socketType, text in pairs({
+    META = EMPTY_SOCKET_META,
+    RED = EMPTY_SOCKET_RED,
+    YELLOW = EMPTY_SOCKET_YELLOW,
+    BLUE = EMPTY_SOCKET_BLUE,
+    PRISMATIC = EMPTY_SOCKET_PRISMATIC or EMPTY_SOCKET_NO_COLOR,
+}) do
+    SOCKET_TYPE_BY_TEXT[text] = socketType
+end
+
+-- Hidden tooltip is created on first use and only read by GetSocketTypes
+local socketScanner
 
 -- Opacity is normalized during Core initialization
 -- All marker textures share same saved alpha
@@ -154,40 +166,48 @@ local function GetEnchantIcon(enchantID)
     return nil
 end
 
--- Compare base item and equipped item socket counts
--- This helps find sockets added by enchant or item effects
--- Item stats may not exist in client cache immediately
--- Never draw more than MAX_GEMS markers
-local function GetSocketTypes(itemLink, itemID)
+-- Find socket type for every empty socket in original socket order
+-- GetItemStats only has per color counts so it cannot keep order
+-- Item tooltip lists sockets in real order and names every empty one
+-- Gemless link fields take those empty lines one by one
+-- Filled sockets stay nil because their gem icon is drawn instead
+-- Pending flag means tooltip has no item data yet
+local function GetSocketTypes(itemLink, gemEnchants)
     local types = {}
-    if type(GetItemStats) ~= "function" then
-        return types
+
+    socketScanner = socketScanner or CreateFrame(
+        "GameTooltip", "FusionGearSocketScanner", nil, "GameTooltipTemplate"
+    )
+    socketScanner:SetOwner(UIParent, "ANCHOR_NONE")
+    socketScanner:SetHyperlink(itemLink)
+
+    -- Missing cache must not look like item without sockets
+    local name = socketScanner:GetName()
+    local lines = socketScanner:NumLines()
+    local title = _G[name .. "TextLeft1"]:GetText()
+    if lines == 0 or title == RETRIEVING_ITEM_INFO then
+        return types, true
     end
 
-    local baseLink = "item:" .. itemID .. ":0:0:0:0:0:0:0:0"
-    local baseOk, baseStats = pcall(GetItemStats, baseLink)
-    local actualOk, actualStats = pcall(GetItemStats, itemLink)
-    baseStats = baseOk and type(baseStats) == "table" and baseStats or nil
-    actualStats = actualOk and type(actualStats) == "table" and actualStats or nil
-    local pending = not baseStats and not actualStats
-    baseStats = baseStats or {}
-    actualStats = actualStats or {}
-
-    for _, socketType in ipairs(SOCKET_ORDER) do
-        local statName = "EMPTY_SOCKET_" .. socketType
-        local baseCount = tonumber(baseStats[statName]) or 0
-        local actualCount = tonumber(actualStats[statName]) or 0
-        local count = math.max(baseCount, actualCount)
-
-        for _ = 1, count do
-            if #types >= MAX_GEMS then
-                return types, pending
-            end
-            types[#types + 1] = socketType
+    local emptySockets = {}
+    for line = 1, lines do
+        local text = _G[name .. "TextLeft" .. line]:GetText()
+        local socketType = SOCKET_TYPE_BY_TEXT[text]
+        if socketType then
+            emptySockets[#emptySockets + 1] = socketType
         end
     end
 
-    return types, pending
+    -- Link field zero means no gem so it takes next empty tooltip line
+    local nextEmpty = 0
+    for index = 1, MAX_GEMS do
+        if gemEnchants[index] == 0 then
+            nextEmpty = nextEmpty + 1
+            types[index] = emptySockets[nextEmpty]
+        end
+    end
+
+    return types, false
 end
 
 -- Create texture once and keep it hidden until icon is known
@@ -286,7 +306,7 @@ local function UpdateSlotMarkers(marker, itemLink)
     local socketTypes = {}
     local waitingForStats = false
     if itemID then
-        socketTypes, waitingForStats = GetSocketTypes(itemLink, itemID)
+        socketTypes, waitingForStats = GetSocketTypes(itemLink, gemEnchants)
     end
 
     local waitingForGem = false
