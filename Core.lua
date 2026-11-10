@@ -349,7 +349,12 @@ function F:ShowFor(view)
         self.ticker:Show()
     end
     local setting = inspect and "showInspectPanel" or "showPanel"
-    SetFrameVisible(panel, FusionGearDB[setting])
+    local visible = FusionGearDB[setting]
+    -- Open Outfitter window covers player panel
+    if not inspect and OutfitterFrame and OutfitterFrame:IsShown() then
+        visible = false
+    end
+    SetFrameVisible(panel, visible)
     self:UpdateButtons()
     self:Refresh()
 end
@@ -378,7 +383,12 @@ function F:CreateToggle(prefix, parent)
     local button = CreateFrame("Button", nil, parent, "UIPanelButtonTemplate")
     button:SetSize(48, 30)
     button:SetText(prefix == "Inspect" and "Sources" or "Stats")
-    button:SetPoint("LEFT", rangedSlot, "RIGHT", 55, -7)
+    -- Place player Stats button left of the bottom equipment row
+    if prefix == "Character" and CharacterMainHandSlot then
+        button:SetPoint("RIGHT", CharacterMainHandSlot, "LEFT", -8, -7)
+    else
+        button:SetPoint("LEFT", rangedSlot, "RIGHT", 55, -7)
+    end
     button:SetFrameLevel(rangedSlot:GetFrameLevel() + 5)
     button:SetScript("OnClick", function()
         F:TogglePanel(prefix == "Inspect" and "inspect" or "player")
@@ -497,6 +507,19 @@ function F:Initialize()
             F:ShowFor("player")
         end)
         CharacterFrame:HookScript("OnHide", RestoreInspectPanel)
+    end
+    -- OutfitterFrame is created by its XML before PLAYER_LOGIN
+    -- ShowFor reads its state so other callers keep panel hidden too
+    if OutfitterFrame then
+        OutfitterFrame:HookScript("OnShow", function()
+            F.panel:Hide()
+        end)
+        OutfitterFrame:HookScript("OnHide", function()
+            -- OnHide also fires when Character window or tab closes
+            if F.activeView == "player" and PaperDollFrame:IsVisible() then
+                F:ShowFor("player")
+            end
+        end)
     end
     if PaperDollFrame and PaperDollFrame:IsShown() then
         self:ExpandCharacterModel()
